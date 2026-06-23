@@ -1,0 +1,905 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Moebius — Tiny Model, Big Results</title>
+<style>
+  :root {
+    --bg: oklch(0.12 0.02 260);
+    --surface: oklch(0.17 0.02 260);
+    --border: oklch(0.25 0.02 260);
+    --text: oklch(0.85 0.01 260);
+    --text-dim: oklch(0.55 0.01 260);
+    --accent: oklch(0.65 0.18 160);
+    --accent2: oklch(0.70 0.15 45);
+    --accent3: oklch(0.65 0.14 300);
+    --danger: oklch(0.55 0.20 25);
+    --glow: oklch(0.65 0.18 160 / 0.3);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: 'SF Mono', 'Fira Code', 'Cascadia Code', monospace;
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+  .container {
+    max-width: 1200px;
+    margin: 0 auto;
+    padding: 20px;
+  }
+  header {
+    text-align: center;
+    padding: 30px 0 20px;
+    position: relative;
+  }
+  header::after {
+    content: '';
+    position: absolute;
+    bottom: 0;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 200px;
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--accent), transparent);
+  }
+  h1 {
+    font-size: 2rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+    letter-spacing: -0.02em;
+  }
+  .subtitle {
+    color: var(--text-dim);
+    font-size: 0.85rem;
+    margin-top: 8px;
+    letter-spacing: 0.05em;
+  }
+  .mode-tabs {
+    display: flex;
+    gap: 4px;
+    justify-content: center;
+    margin: 24px 0;
+    background: var(--surface);
+    border-radius: 12px;
+    padding: 4px;
+    border: 1px solid var(--border);
+  }
+  .mode-tab {
+    padding: 10px 20px;
+    border: none;
+    background: transparent;
+    color: var(--text-dim);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s;
+    letter-spacing: 0.02em;
+  }
+  .mode-tab:hover { color: var(--text); }
+  .mode-tab.active {
+    background: oklch(0.25 0.02 260);
+    color: var(--accent);
+    box-shadow: 0 2px 12px var(--glow);
+  }
+  .mode-panel { display: none; }
+  .mode-panel.active { display: block; }
+  canvas {
+    border-radius: 12px;
+    border: 1px solid var(--border);
+    background: var(--surface);
+    display: block;
+    width: 100%;
+    max-width: 1160px;
+    margin: 0 auto;
+  }
+  .controls {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 16px;
+    margin: 20px 0;
+  }
+  .control-group {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+  }
+  .control-group label {
+    display: block;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+    margin-bottom: 8px;
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+  }
+  .control-group input[type="range"] {
+    width: 100%;
+    accent-color: var(--accent);
+    margin: 8px 0;
+  }
+  .control-group .value {
+    font-size: 1.1rem;
+    font-weight: 600;
+    color: var(--accent);
+  }
+  .btn {
+    padding: 10px 24px;
+    border: 1px solid var(--accent);
+    background: transparent;
+    color: var(--accent);
+    font-family: inherit;
+    font-size: 0.85rem;
+    cursor: pointer;
+    border-radius: 8px;
+    transition: all 0.3s;
+    letter-spacing: 0.02em;
+  }
+  .btn:hover {
+    background: var(--accent);
+    color: var(--bg);
+  }
+  .btn-group {
+    display: flex;
+    gap: 8px;
+    justify-content: center;
+    margin: 16px 0;
+  }
+  .stats-row {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+    gap: 12px;
+    margin: 20px 0;
+  }
+  .stat-card {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 14px;
+    text-align: center;
+  }
+  .stat-card .stat-value {
+    font-size: 1.4rem;
+    font-weight: 700;
+    background: linear-gradient(135deg, var(--accent), var(--accent2));
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .stat-card .stat-label {
+    font-size: 0.7rem;
+    color: var(--text-dim);
+    text-transform: uppercase;
+    letter-spacing: 0.08em;
+    margin-top: 4px;
+  }
+  .legend {
+    display: flex;
+    gap: 20px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin: 12px 0;
+    font-size: 0.75rem;
+    color: var(--text-dim);
+  }
+  .legend-item {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+  .legend-dot {
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+  footer {
+    text-align: center;
+    padding: 30px 0;
+    color: var(--text-dim);
+    font-size: 0.75rem;
+  }
+  footer a {
+    color: var(--accent);
+    text-decoration: none;
+  }
+  .training-log {
+    background: var(--surface);
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    padding: 16px;
+    margin: 16px 0;
+    max-height: 200px;
+    overflow-y: auto;
+    font-size: 0.75rem;
+    line-height: 1.6;
+  }
+  .log-entry { border-bottom: 1px solid var(--border); padding: 4px 0; }
+  .log-entry:last-child { border: none; }
+  .log-step { color: var(--accent2); }
+  .log-loss { color: var(--accent); }
+  .log-improve { color: var(--accent3); }
+</style>
+</head>
+<body>
+<div class="container">
+  <header>
+    <h1>Moebius — Tiny Model, Big Results</h1>
+    <p class="subtitle">HN: 0.2B parameter model achieves 10B-level image inpainting · VibeThinker: 3B beats Opus 4.5 via SFT+GRPO</p>
+  </header>
+
+  <div class="mode-tabs">
+    <button class="mode-tab active" data-mode="scatter">Model Scatter</button>
+    <button class="mode-tab" data-mode="inpaint">Inpainting Demo</button>
+    <button class="mode-tab" data-mode="training">SFT+GRPO Training</button>
+  </div>
+
+  <div class="mode-panel active" id="panel-scatter">
+    <canvas id="scatter-canvas" width="1160" height="500"></canvas>
+    <div class="legend">
+      <div class="legend-item"><div class="legend-dot" style="background:oklch(0.45 0.12 260)"></div> Traditional Models</div>
+      <div class="legend-item"><div class="legend-dot" style="background:oklch(0.65 0.18 160)"></div> Moebius (0.2B)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:oklch(0.70 0.15 45)"></div> VibeThinker (3B)</div>
+      <div class="legend-item"><div class="legend-dot" style="background:oklch(0.55 0.20 25)"></div> Scaling Law Curve</div>
+    </div>
+  </div>
+
+  <div class="mode-panel" id="panel-inpaint">
+    <div class="controls">
+      <div class="control-group">
+        <label>Inpaint Region Size</label>
+        <input type="range" id="inp-intensity" min="10" max="50" value="30">
+        <div class="value" id="inp-intensity-val">30%</div>
+      </div>
+      <div class="control-group">
+        <label>Model Size</label>
+        <input type="range" id="model-size" min="0.1" max="10" step="0.1" value="0.2">
+        <div class="value" id="model-size-val">0.2B</div>
+      </div>
+      <div class="control-group">
+        <label>Training Method</label>
+        <select id="train-method" style="width:100%;padding:8px;background:var(--bg);color:var(--text);border:1px solid var(--border);border-radius:8px;font-family:inherit;">
+          <option value="sft">SFT Only</option>
+          <option value="grpo">GRPO Only</option>
+          <option value="both" selected>SFT + GRPO (Moebius)</option>
+        </select>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn" id="btn-inpaint-start">Start Inpainting</button>
+      <button class="btn" id="btn-inpaint-reset">Reset</button>
+      <button class="btn" id="btn-inpaint-randomize">Randomize Scene</button>
+    </div>
+    <canvas id="inpaint-canvas" width="1160" height="500"></canvas>
+  </div>
+
+  <div class="mode-panel" id="panel-training">
+    <div class="controls">
+      <div class="control-group">
+        <label>Training Steps</label>
+        <input type="range" id="train-steps" min="100" max="5000" step="100" value="2000">
+        <div class="value" id="train-steps-val">2000</div>
+      </div>
+      <div class="control-group">
+        <label>Learning Rate</label>
+        <input type="range" id="lr" min="1" max="100" value="30">
+        <div class="value" id="lr-val">3e-4</div>
+      </div>
+      <div class="control-group">
+        <label>GRPO Weight</label>
+        <input type="range" id="grpo-weight" min="0" max="100" value="50">
+        <div class="value" id="grpo-weight-val">0.50</div>
+      </div>
+    </div>
+    <div class="btn-group">
+      <button class="btn" id="btn-train-start">Start Training</button>
+      <button class="btn" id="btn-train-reset">Reset</button>
+    </div>
+    <div class="stats-row" id="train-stats"></div>
+    <canvas id="training-canvas" width="1160" height="350"></canvas>
+    <div class="training-log" id="training-log"></div>
+  </div>
+
+  <footer>
+    Built from HN trends: Moebius (281pts) + VibeThinker (161pts) · <a href="https://hustvl.github.io/Moebius/">Moebius Paper</a> · <a href="https://arxiv.org/abs/2606.16140">VibeThinker Paper</a>
+  </footer>
+</div>
+
+<script>
+// Seeded PRNG
+function mulberry32(a) {
+  return function() {
+    a |= 0; a = a + 0x6D2B79F5 | 0;
+    var t = Math.imul(a ^ a >>> 15, 1 | a);
+    t = t + Math.imul(t ^ t >>> 7, 61 | t) ^ t;
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  }
+}
+
+let currentMode = 'scatter';
+let rng = mulberry32(42);
+let animFrame;
+
+// Tab switching
+document.querySelectorAll('.mode-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.mode-tab').forEach(t => t.classList.remove('active'));
+    document.querySelectorAll('.mode-panel').forEach(p => p.classList.remove('active'));
+    tab.classList.add('active');
+    document.getElementById('panel-' + tab.dataset.mode).classList.add('active');
+    currentMode = tab.dataset.mode;
+  });
+});
+
+// Control sliders
+function setupSlider(id, valId, fmt) {
+  const el = document.getElementById(id);
+  const valEl = document.getElementById(valId);
+  el.addEventListener('input', () => { valEl.textContent = fmt(el.value); });
+}
+setupSlider('inp-intensity', 'inp-intensity-val', v => v + '%');
+setupSlider('model-size', 'model-size-val', v => parseFloat(v).toFixed(1) + 'B');
+setupSlider('train-steps', 'train-steps-val', v => v);
+setupSlider('lr', 'lr-val', v => (v/100).toExponential(0).replace('+', ''));
+setupSlider('grpo-weight', 'grpo-weight-val', v => (v/100).toFixed(2));
+
+// ============ SCATTER PLOT ============
+function drawScatter() {
+  const c = document.getElementById('scatter-canvas');
+  const ctx = c.getContext('2d');
+  const W = c.width, H = c.height;
+  rng = mulberry32(42);
+
+  ctx.fillStyle = 'oklch(0.14 0.02 260)';
+  ctx.fillRect(0, 0, W, H);
+
+  // Grid
+  ctx.strokeStyle = 'oklch(0.22 0.01 260)';
+  ctx.lineWidth = 0.5;
+  for (let i = 1; i <= 10; i++) {
+    const x = 80 + (i - 1) / 9 * (W - 160);
+    ctx.beginPath(); ctx.moveTo(x, 30); ctx.lineTo(x, H - 50); ctx.stroke();
+  }
+  for (let i = 1; i <= 8; i++) {
+    const y = 30 + (i - 1) / 7 * (H - 80);
+    ctx.beginPath(); ctx.moveTo(80, y); ctx.lineTo(W - 80, y); ctx.stroke();
+  }
+
+  // Axis labels
+  ctx.fillStyle = 'oklch(0.5 0.01 260)';
+  ctx.font = '11px monospace';
+  ctx.textAlign = 'center';
+  for (let i = 1; i <= 10; i++) {
+    const val = (i * 0.5).toFixed(1);
+    ctx.fillText(val + 'B', 80 + (i-1)/9*(W-160), H - 30);
+  }
+  ctx.textAlign = 'right';
+  for (let i = 1; i <= 8; i++) {
+    const val = (i * 10).toFixed(0);
+    ctx.fillText(val, 70, 30 + (i-1)/7*(H-80) + 4);
+  }
+
+  // Axis titles
+  ctx.fillStyle = 'oklch(0.45 0.01 260)';
+  ctx.font = '12px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Model Parameters (Billions)', W/2, H - 5);
+  ctx.save();
+  ctx.translate(15, H/2);
+  ctx.rotate(-Math.PI/2);
+  ctx.fillText('Inpainting Quality (FID↓)', 0, 0);
+  ctx.restore();
+
+  // Scaling law curve (lower bound)
+  ctx.strokeStyle = 'oklch(0.55 0.20 25 / 0.4)';
+  ctx.lineWidth = 2;
+  ctx.setLineDash([8, 4]);
+  ctx.beginPath();
+  for (let x = 0; x <= 100; x++) {
+    const px = 80 + x/100 * (W - 160);
+    const fy = H - 50 - (1 - Math.exp(-x/25)) * (H - 100);
+    x === 0 ? ctx.moveTo(px, fy) : ctx.lineTo(px, fy);
+  }
+  ctx.stroke();
+  ctx.setLineDash([]);
+
+  // Generate traditional model data
+  const traditional = [];
+  for (let i = 0; i < 25; i++) {
+    const params = 0.3 + rng() * 20;
+    const quality = (1 - Math.exp(-params/3)) * 90 + (rng() - 0.5) * 15;
+    traditional.push({ params, quality, color: 'oklch(0.45 0.12 260)', size: 4 + rng() * 3 });
+  }
+  traditional.forEach(p => {
+    const x = 80 + Math.min(p.params, 25) / 25 * (W - 160);
+    const y = H - 50 - Math.max(0, Math.min(p.quality, 100)) / 100 * (H - 100);
+    ctx.beginPath();
+    ctx.arc(x, y, p.size, 0, Math.PI * 2);
+    ctx.fillStyle = p.color;
+    ctx.fill();
+  });
+
+  // Moebius point (0.2B, exceptional)
+  const mx = 80 + 0.2 / 25 * (W - 160);
+  const my = H - 50 - 85 / 100 * (H - 100);
+  ctx.beginPath();
+  ctx.arc(mx, my, 14, 0, Math.PI * 2);
+  const moebiusGrad = ctx.createRadialGradient(mx, my, 0, mx, my, 14);
+  moebiusGrad.addColorStop(0, 'oklch(0.75 0.20 160)');
+  moebiusGrad.addColorStop(1, 'oklch(0.65 0.18 160)');
+  ctx.fillStyle = moebiusGrad;
+  ctx.fill();
+  ctx.strokeStyle = 'oklch(0.65 0.18 160 / 0.5)';
+  ctx.lineWidth = 2;
+  ctx.stroke();
+  // Glow
+  ctx.beginPath();
+  ctx.arc(mx, my, 24, 0, Math.PI * 2);
+  ctx.fillStyle = 'oklch(0.65 0.18 160 / 0.15)';
+  ctx.fill();
+
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Moebius 0.2B', mx, my - 20);
+
+  // VibeThinker point
+  const vx = 80 + 3 / 25 * (W - 160);
+  const vy = H - 50 - 82 / 100 * (H - 100);
+  ctx.beginPath();
+  ctx.arc(vx, vy, 12, 0, Math.PI * 2);
+  ctx.fillStyle = 'oklch(0.70 0.15 45)';
+  ctx.fill();
+  ctx.beginPath();
+  ctx.arc(vx, vy, 20, 0, Math.PI * 2);
+  ctx.fillStyle = 'oklch(0.70 0.15 45 / 0.12)';
+  ctx.fill();
+  ctx.fillStyle = '#fff';
+  ctx.font = 'bold 11px monospace';
+  ctx.fillText('VibeThinker 3B', vx, vy - 18);
+
+  // Big model points (right side, lower quality)
+  const bigModels = [
+    { name: 'SDXL', params: 6.6, quality: 60 },
+    { name: 'SD3', params: 8.0, quality: 62 },
+    { name: 'DALL·E 3', params: 'est.', quality: 55 },
+    { name: 'Flux Pro', params: 12.0, quality: 68 },
+  ];
+  bigModels.forEach(bm => {
+    const bx = 80 + Math.min(bm.params, 25) / 25 * (W - 160);
+    const by = H - 50 - bm.quality / 100 * (H - 100);
+    ctx.beginPath();
+    ctx.arc(bx, by, 6, 0, Math.PI * 2);
+    ctx.fillStyle = 'oklch(0.50 0.10 260)';
+    ctx.fill();
+    ctx.fillStyle = 'oklch(0.6 0.01 260)';
+    ctx.font = '9px monospace';
+    ctx.textAlign = 'center';
+    ctx.fillText(bm.name, bx, by - 14);
+  });
+
+  // Annotation arrows
+  ctx.strokeStyle = 'oklch(0.65 0.18 160 / 0.6)';
+  ctx.lineWidth = 1;
+  ctx.setLineDash([3, 3]);
+  ctx.beginPath();
+  ctx.moveTo(mx + 16, my - 8);
+  ctx.lineTo(mx + 60, my - 60);
+  ctx.stroke();
+  ctx.fillStyle = 'oklch(0.65 0.18 160)';
+  ctx.font = '10px monospace';
+  ctx.textAlign = 'left';
+  ctx.fillText('Breaks the curve!', mx + 62, my - 58);
+  ctx.setLineDash([]);
+}
+
+// ============ INPAINTING DEMO ============
+let inpaintAnim = null;
+
+function generateScene(seed) {
+  const rng2 = mulberry32(seed);
+  const colors = [];
+  const shapes = [];
+  // Generate a "natural" scene with simple shapes
+  // Sky gradient
+  for (let y = 0; y < 500; y++) {
+    const t = y / 500;
+    const r = 0.12 + t * 0.15;
+    const g = 0.14 + t * 0.1;
+    colors.push(`oklch(${r.toFixed(2)} ${g.toFixed(2)} 260)`);
+  }
+  // Trees/buildings on the left
+  for (let x = 0; x < 250; x++) {
+    const h = 80 + rng2() * 120;
+    shapes.push({ type: 'tree', x, y: 400 - h, w: 15 + rng2() * 20, h });
+  }
+  // Mountains in background
+  shapes.push({ type: 'mountain', x: 100, y: 320, w: 300, h: 120 });
+  shapes.push({ type: 'mountain', x: 250, y: 340, w: 200, h: 100 });
+  return { rng: rng2, colors, shapes };
+}
+
+function drawInpaintScene(ctx, scene, damageX, damageY, damageW, damageH) {
+  const W = ctx.canvas.width, H = ctx.canvas.height;
+  // Sky
+  const skyGrad = ctx.createLinearGradient(0, 0, 0, H * 0.7);
+  skyGrad.addColorStop(0, 'oklch(0.12 0.02 260)');
+  skyGrad.addColorStop(1, 'oklch(0.20 0.03 260)');
+  ctx.fillStyle = skyGrad;
+  ctx.fillRect(0, 0, W, H);
+
+  // Stars
+  const srng = mulberry32(999);
+  for (let i = 0; i < 50; i++) {
+    ctx.fillStyle = `oklch(0.7 0.01 260 / ${0.3 + srng() * 0.3})`;
+    ctx.fillRect(srng() * W, srng() * H * 0.5, 1 + srng() * 2, 1 + srng() * 2);
+  }
+
+  // Ground
+  ctx.fillStyle = 'oklch(0.15 0.03 160)';
+  ctx.fillRect(0, H * 0.65, W, H * 0.35);
+
+  // Mountains
+  ctx.fillStyle = 'oklch(0.20 0.04 260)';
+  ctx.beginPath();
+  ctx.moveTo(0, H * 0.7);
+  for (let x = 0; x <= W; x += 10) {
+    const y = H * 0.55 - Math.sin(x * 0.005) * 40 - Math.sin(x * 0.013) * 20;
+    ctx.lineTo(x, y);
+  }
+  ctx.lineTo(W, H); ctx.lineTo(0, H); ctx.closePath(); ctx.fill();
+
+  // Trees
+  ctx.fillStyle = 'oklch(0.18 0.05 160)';
+  for (let x = 0; x < 300; x += 30) {
+    const h = 40 + (mulberry32(x * 7)() * 60);
+    ctx.beginPath();
+    ctx.moveTo(x - 8, H * 0.65);
+    ctx.lineTo(x, H * 0.65 - h);
+    ctx.lineTo(x + 8, H * 0.65);
+    ctx.fill();
+  }
+
+  // Sun/moon
+  ctx.beginPath();
+  ctx.arc(W * 0.8, H * 0.2, 25, 0, Math.PI * 2);
+  const sunGrad = ctx.createRadialGradient(W*0.8, H*0.2, 0, W*0.8, H*0.2, 25);
+  sunGrad.addColorStop(0, 'oklch(0.80 0.15 45)');
+  sunGrad.addColorStop(1, 'oklch(0.80 0.15 45 / 0)');
+  ctx.fillStyle = sunGrad;
+  ctx.fill();
+
+  // Damage zone
+  ctx.fillStyle = 'oklch(0.08 0.02 260 / 0.8)';
+  ctx.fillRect(damageX, damageY, damageW, damageH);
+
+  // Grid lines in damage zone
+  ctx.strokeStyle = 'oklch(0.30 0.02 260 / 0.5)';
+  ctx.lineWidth = 0.5;
+  for (let x = damageX; x < damageX + damageW; x += 15) {
+    ctx.beginPath(); ctx.moveTo(x, damageY); ctx.lineTo(x, damageY + damageH); ctx.stroke();
+  }
+  for (let y = damageY; y < damageY + damageH; y += 15) {
+    ctx.beginPath(); ctx.moveTo(damageX, y); ctx.lineTo(damageX + damageW, y); ctx.stroke();
+  }
+}
+
+function startInpainting() {
+  if (inpaintAnim) cancelAnimationFrame(inpaintAnim);
+
+  const c = document.getElementById('inpaint-canvas');
+  const ctx = c.getContext('2d');
+  const intensity = parseInt(document.getElementById('inp-intensity').value);
+  const modelSize = parseFloat(document.getElementById('model-size').value);
+  const trainMethod = document.getElementById('train-method').value;
+
+  const damageW = c.width * intensity / 100;
+  const damageH = c.height * 0.5;
+  const damageX = (c.width - damageW) / 2;
+  const damageY = (c.height - damageH) / 2;
+
+  const scene = generateScene(42);
+  drawInpaintScene(ctx, scene, damageX, damageY, damageW, damageH);
+
+  let progress = 0;
+  const speed = 0.005 + modelSize * 0.003;
+  const quality = Math.min(95, 20 + modelSize * 15 + (trainMethod === 'both' ? 20 : trainMethod === 'grpo' ? 10 : 0));
+
+  function animate() {
+    progress += speed;
+    if (progress >= 1) progress = 1;
+
+    ctx.clearRect(0, 0, c.width, c.height);
+    drawInpaintScene(ctx, scene, damageX, damageY, damageW, damageH);
+
+    // Simulated inpainting fill
+    if (progress > 0.1) {
+      const fillW = damageW * progress;
+      const fillH = damageH * progress;
+      const startX = damageX + (damageW - fillW) / 2;
+      const startY = damageY + (damageH - fillH) / 2;
+
+      // Generate "inpainted" content with seeded noise
+      const prng = mulberry32(Math.floor(progress * 1000));
+      for (let i = 0; i < fillW * fillH / 200; i++) {
+        const px = startX + prng() * fillW;
+        const py = startY + prng() * fillH;
+        const hue = 160 + prng() * 40 - 20;
+        const light = 0.25 + prng() * 0.15;
+        const sat = 0.05 + prng() * 0.1;
+        ctx.fillStyle = `oklch(${light} ${sat} ${hue})`;
+        ctx.fillRect(px, py, 3 + prng() * 4, 3 + prng() * 4);
+      }
+
+      // Smooth overlay edges
+      const edgeWidth = 10;
+      const grad1 = ctx.createLinearGradient(damageX, 0, damageX + edgeWidth, 0);
+      grad1.addColorStop(0, 'oklch(0.08 0.02 260 / 0.9)');
+      grad1.addColorStop(1, 'oklch(0.08 0.02 260 / 0)');
+      ctx.fillStyle = grad1;
+      ctx.fillRect(damageX, damageY, edgeWidth, damageH);
+
+      const grad2 = ctx.createLinearGradient(damageX + damageW - edgeWidth, 0, damageX + damageW, 0);
+      grad2.addColorStop(0, 'oklch(0.08 0.02 260 / 0)');
+      grad2.addColorStop(1, 'oklch(0.08 0.02 260 / 0.9)');
+      ctx.fillStyle = grad2;
+      ctx.fillRect(damageX + damageW - edgeWidth, damageY, edgeWidth, damageH);
+    }
+
+    // Progress bar
+    ctx.fillStyle = 'oklch(0.65 0.18 160 / 0.2)';
+    ctx.fillRect(damageX, damageY + damageH + 8, damageW, 4);
+    ctx.fillStyle = 'oklch(0.65 0.18 160)';
+    ctx.fillRect(damageX, damageY + damageH + 8, damageW * progress, 4);
+
+    // Status text
+    ctx.fillStyle = '#fff';
+    ctx.font = 'bold 14px monospace';
+    ctx.textAlign = 'center';
+    const status = progress >= 1 ? '✓ Inpainting Complete' : `Inpainting... ${Math.floor(progress * 100)}%`;
+    ctx.fillText(status, c.width / 2, damageY - 12);
+
+    ctx.font = '11px monospace';
+    ctx.fillStyle = 'oklch(0.6 0.01 260)';
+    const methodLabel = trainMethod === 'both' ? 'SFT+GRPO' : trainMethod === 'grpo' ? 'GRPO' : 'SFT';
+    ctx.fillText(`${modelSize}B params · ${methodLabel} · Est. FID: ${(100 - quality).toFixed(1)}`, c.width / 2, damageY - 26);
+
+    if (progress < 1) inpaintAnim = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+document.getElementById('btn-inpaint-start').addEventListener('click', startInpainting);
+document.getElementById('btn-inpaint-reset').addEventListener('click', () => {
+  if (inpaintAnim) cancelAnimationFrame(inpaintAnim);
+  const c = document.getElementById('inpaint-canvas');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'oklch(0.14 0.02 260)';
+  ctx.fillRect(0, 0, c.width, c.height);
+});
+document.getElementById('btn-inpaint-randomize').addEventListener('click', () => {
+  if (inpaintAnim) cancelAnimationFrame(inpaintAnim);
+  const c = document.getElementById('inpaint-canvas');
+  const ctx = c.getContext('2d');
+  const seed = Math.floor(Math.random() * 999999);
+  const scene = generateScene(seed);
+  drawInpaintScene(ctx, scene, 100, 80, c.width - 200, c.height - 160);
+  ctx.fillStyle = '#fff';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Scene generated (seed: ' + seed + ') — click "Start Inpainting"', c.width / 2, 20);
+});
+
+// ============ TRAINING VISUALIZATION ============
+let trainAnim = null;
+let trainState = null;
+
+function startTraining() {
+  if (trainAnim) cancelAnimationFrame(trainAnim);
+  const totalSteps = parseInt(document.getElementById('train-steps').value);
+  const lr = parseFloat(document.getElementById('lr').value) / 100;
+  const grpoW = parseFloat(document.getElementById('grpo-weight').value) / 100;
+
+  // Initialize training state
+  trainState = {
+    steps: 0,
+    totalSteps,
+    loss: 2.5,
+    quality: 10,
+    lr,
+    grpoW,
+    lossHistory: [],
+    qualityHistory: [],
+    sftBonus: 0,
+    grpoBonus: 0,
+    logEntries: [],
+  };
+
+  document.getElementById('training-log').innerHTML = '';
+
+  // Update stat cards
+  updateTrainStats();
+
+  function animate() {
+    const c = document.getElementById('training-canvas');
+    const ctx = c.getContext('2d');
+
+    // Training step
+    const stepIncrement = Math.max(1, Math.floor(totalSteps / 200));
+    for (let i = 0; i < stepIncrement && trainState.steps < totalSteps; i++) {
+      trainState.steps++;
+      const t = trainState.steps / totalSteps;
+
+      // Loss decay with oscillation
+      const baseLoss = 2.5 * Math.exp(-t * 3);
+      const oscillation = Math.sin(t * 20) * 0.1 * Math.exp(-t * 2);
+      trainState.loss = Math.max(0.01, baseLoss + oscillation);
+
+      // Quality improvement with SFT+GRPO boost
+      const baseQuality = 100 * (1 - Math.exp(-t * 4));
+      trainState.sftBonus = t * 5;
+      trainState.grpoBonus = grpoW * t * 15;
+      trainState.quality = Math.min(95, baseQuality + trainState.sftBonus + trainState.grpoBonus);
+
+      trainState.lossHistory.push(trainState.loss);
+      trainState.qualityHistory.push(trainState.quality);
+
+      // Log entries at milestones
+      if (trainState.steps % Math.ceil(totalSteps / 20) === 0) {
+        const entry = document.createElement('div');
+        entry.className = 'log-entry';
+        if (t > 0.5) {
+          entry.innerHTML = `<span class="log-step">[STEP ${trainState.steps}]</span> <span class="log-improve">GRPO reward improved</span> → loss <span class="log-loss">${trainState.loss.toFixed(4)}</span>`;
+        } else {
+          entry.innerHTML = `<span class="log-step">[STEP ${trainState.steps}]</span> <span class="log-loss">loss: ${trainState.loss.toFixed(4)}</span> | quality: ${trainState.quality.toFixed(1)}`;
+        }
+        const logEl = document.getElementById('training-log');
+        logEl.appendChild(entry);
+        logEl.scrollTop = logEl.scrollHeight;
+      }
+    }
+
+    // Draw training curves
+    ctx.fillStyle = 'oklch(0.14 0.02 260)';
+    ctx.fillRect(0, 0, c.width, c.height);
+
+    // Grid
+    ctx.strokeStyle = 'oklch(0.22 0.01 260)';
+    ctx.lineWidth = 0.5;
+    for (let i = 1; i <= 10; i++) {
+      const x = 60 + (i - 1) / 9 * (c.width - 120);
+      ctx.beginPath(); ctx.moveTo(x, 20); ctx.lineTo(x, c.height - 35); ctx.stroke();
+    }
+    for (let i = 1; i <= 6; i++) {
+      const y = 20 + (i - 1) / 5 * (c.height - 55);
+      ctx.beginPath(); ctx.moveTo(60, y); ctx.lineTo(c.width - 60, y); ctx.stroke();
+    }
+
+    // Axis labels
+    ctx.fillStyle = 'oklch(0.5 0.01 260)';
+    ctx.font = '10px monospace';
+    ctx.textAlign = 'center';
+    for (let i = 0; i <= 4; i++) {
+      ctx.fillText(Math.round(i / 4 * trainState.totalSteps) + '', 60 + i / 4 * (c.width - 120), c.height - 15);
+    }
+    ctx.textAlign = 'right';
+    ctx.fillText('Loss', 52, 25);
+    ctx.fillText('Quality', 52, c.height - 30);
+
+    // Loss curve (orange)
+    if (trainState.lossHistory.length > 1) {
+      ctx.strokeStyle = 'oklch(0.70 0.15 45)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      trainState.lossHistory.forEach((loss, i) => {
+        const x = 60 + i / (trainState.totalSteps - 1) * (c.width - 120);
+        const y = 20 + (1 - loss / 3) * (c.height - 55);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // Quality curve (green)
+    if (trainState.qualityHistory.length > 1) {
+      ctx.strokeStyle = 'oklch(0.65 0.18 160)';
+      ctx.lineWidth = 2;
+      ctx.beginPath();
+      trainState.qualityHistory.forEach((q, i) => {
+        const x = 60 + i / (trainState.totalSteps - 1) * (c.width - 120);
+        const y = 20 + (1 - q / 100) * (c.height - 55);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      });
+      ctx.stroke();
+    }
+
+    // Live cursor
+    if (trainState.steps > 0 && trainState.steps < trainState.totalSteps) {
+      const cx = 60 + trainState.steps / (trainState.totalSteps - 1) * (c.width - 120);
+      const cy1 = 20 + (1 - trainState.loss / 3) * (c.height - 55);
+      const cy2 = 20 + (1 - trainState.quality / 100) * (c.height - 55);
+
+      ctx.strokeStyle = 'oklch(0.55 0.20 25 / 0.5)';
+      ctx.lineWidth = 1;
+      ctx.setLineDash([4, 4]);
+      ctx.beginPath(); ctx.moveTo(cx, 20); ctx.lineTo(cx, c.height - 35); ctx.stroke();
+      ctx.setLineDash([]);
+
+      ctx.beginPath(); ctx.arc(cx, cy1, 4, 0, Math.PI * 2);
+      ctx.fillStyle = 'oklch(0.70 0.15 45)'; ctx.fill();
+      ctx.beginPath(); ctx.arc(cx, cy2, 4, 0, Math.PI * 2);
+      ctx.fillStyle = 'oklch(0.65 0.18 160)'; ctx.fill();
+    }
+
+    // Completion
+    if (trainState.steps >= trainState.totalSteps) {
+      ctx.fillStyle = 'oklch(0.65 0.18 160)';
+      ctx.font = 'bold 16px monospace';
+      ctx.textAlign = 'center';
+      ctx.fillText('✓ Training Complete', c.width / 2, c.height / 2 - 10);
+      ctx.font = '12px monospace';
+      ctx.fillStyle = 'oklch(0.6 0.01 260)';
+      ctx.fillText(`Final Loss: ${trainState.loss.toFixed(4)} | Quality: ${trainState.quality.toFixed(1)}`, c.width / 2, c.height / 2 + 15);
+      return;
+    }
+
+    updateTrainStats();
+    trainAnim = requestAnimationFrame(animate);
+  }
+  animate();
+}
+
+function updateTrainStats() {
+  if (!trainState) return;
+  const container = document.getElementById('train-stats');
+  container.innerHTML = `
+    <div class="stat-card"><div class="stat-value">${trainState.steps}</div><div class="stat-label">Steps Done</div></div>
+    <div class="stat-card"><div class="stat-value">${trainState.loss.toFixed(4)}</div><div class="stat-label">Loss</div></div>
+    <div class="stat-card"><div class="stat-value">${trainState.quality.toFixed(1)}</div><div class="stat-label">Quality</div></div>
+    <div class="stat-card"><div class="stat-value">+${(trainState.grpoBonus).toFixed(1)}</div><div class="stat-label">GRPO Boost</div></div>
+    <div class="stat-card"><div class="stat-value">${(trainState.sftBonus).toFixed(1)}</div><div class="stat-label">SFT Bonus</div></div>
+    <div class="stat-card"><div class="stat-value">${(100 - trainState.quality).toFixed(1)}</div><div class="stat-label">Est. FID</div></div>
+  `;
+}
+
+document.getElementById('btn-train-start').addEventListener('click', startTraining);
+document.getElementById('btn-train-reset').addEventListener('click', () => {
+  if (trainAnim) cancelAnimationFrame(trainAnim);
+  trainState = null;
+  document.getElementById('train-stats').innerHTML = '';
+  document.getElementById('training-log').innerHTML = '';
+  const c = document.getElementById('training-canvas');
+  const ctx = c.getContext('2d');
+  ctx.fillStyle = 'oklch(0.14 0.02 260)';
+  ctx.fillRect(0, 0, c.width, c.height);
+  ctx.fillStyle = 'oklch(0.5 0.01 260)';
+  ctx.font = '14px monospace';
+  ctx.textAlign = 'center';
+  ctx.fillText('Set parameters and click "Start Training"', c.width / 2, c.height / 2);
+});
+
+// Initial draw
+drawScatter();
+const initC = document.getElementById('inpaint-canvas');
+const initCtx = initC.getContext('2d');
+initCtx.fillStyle = 'oklch(0.14 0.02 260)';
+initCtx.fillRect(0, 0, initC.width, initC.height);
+initCtx.fillStyle = 'oklch(0.5 0.01 260)';
+initCtx.font = '14px monospace';
+initCtx.textAlign = 'center';
+initCtx.fillText('Click "Start Inpainting" to begin', initC.width / 2, initC.height / 2);
+const trainC = document.getElementById('training-canvas');
+const trainCtx = trainC.getContext('2d');
+trainCtx.fillStyle = 'oklch(0.14 0.02 260)';
+trainCtx.fillRect(0, 0, trainC.width, trainC.height);
+trainCtx.fillStyle = 'oklch(0.5 0.01 260)';
+trainCtx.font = '14px monospace';
+trainCtx.textAlign = 'center';
+trainCtx.fillText('Set parameters and click "Start Training"', trainC.width / 2, trainC.height / 2);
+</script>
+</body>
+</html>
